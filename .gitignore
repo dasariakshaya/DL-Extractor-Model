@@ -1,0 +1,51 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+env/
+dl_env/
+dl_env311/
+
+# Environment files
+*.env
+.env*
+
+# Output & temp folders
+output/
+outputs/
+temp_uploads/
+test_images/
+original_image/
+preprocessing_steps/
+functions/
+
+# Logs
+*.log
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# Pytest cache
+.pytest_cache/
+
+# IDE specific
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Models & large files
+*.pt
+*.tar
+*.h5
+*.onnx
+*.ckpt
+
+# Docker related
+.dockerignore
