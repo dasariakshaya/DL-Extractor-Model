@@ -1,17 +1,18 @@
 import os
 import logging
 from flask import Flask, request, jsonify
+from werkzeug.utils import secure_filename
 import pipeline
-from PIL import Image # For handling image data
-import numpy as np    # For converting image to array format for your pipeline
-import io             # For handling in-memory byte streams
 
 # --- Configuration ---
-# No longer need UPLOAD_FOLDER as we process in memory
+UPLOAD_FOLDER = 'temp_uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 logging.basicConfig(level=logging.INFO)
 
-# --- Pre-load Models (This part is unchanged) ---
+# --- Pre-load Models ---
 logging.info("Initializing OCR models... This may take a moment.")
 recognizer = pipeline.AdvancedTextRecognizer()
 recognizer.initialize_models()
@@ -28,22 +29,20 @@ def extract_dl_info():
 
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
+
+    # THE FIX IS ON THIS LINE: Added ".jpg" to the temporary filename
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], "temp_image_file.jpg")
+    file.save(filepath)
     
-    app.logger.info(f"Processing uploaded file: {file.filename}")
+    app.logger.info(f"Processing uploaded file saved to: {filepath}")
 
     try:
-        # 1. Read the image file stream into memory
-        image_bytes = file.read()
-        pil_image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-        
-        # 2. Convert the PIL image to a NumPy array, which your pipeline likely expects
-        image_np = np.array(pil_image)
-
-        # 3. Feed the in-memory image directly into your pipeline's preprocessor
-        #    This bypasses the need for DrivingLicenseImageInput and saving files.
-        processed_image, _ = preprocessor.preprocess_image(image_np, show_steps=False)
+        input_handler = pipeline.DrivingLicenseImageInput(filepath)
+        image = input_handler.load_image()
+        processed_image, _ = preprocessor.preprocess_image(image, show_steps=False)
         ocr_results = recognizer.recognize_text(processed_image)
         extracted_info = extractor.extract_all_info(ocr_results)
+        os.remove(filepath)
         
         app.logger.info(f"Successfully extracted DL numbers: {extracted_info.dl_numbers}")
         return jsonify({
@@ -53,10 +52,10 @@ def extract_dl_info():
         })
     except Exception as e:
         app.logger.error(f"Error processing file: {e}", exc_info=True)
+        if os.path.exists(filepath):
+            os.remove(filepath)
         return jsonify({'error': f'An error occurred during image processing: {str(e)}'}), 500
 
-if __name__ == "__main__":
-    # This section is not used when deploying with Gunicorn, but is useful for local testing.
-    port = int(os.environ.get('PORT', 8080))
-    # For local test: app.run(debug=False, host='0.0.0.0', port=port)
-    pass
+# This "if" statement MUST start at the beginning of the line with no indentation.
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5001)
